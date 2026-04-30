@@ -72,4 +72,4 @@ This is a PHP-based web application for booking car detailing appointments, buil
 - `controllers/`: Business logic.
 - `views/`: UI templates (header, footer, pages).
 - `public/`: Web-accessible entry point and assets.
-- `detail_lab.sql`: Database schema.
+- `detail_lab.sql`: Database schema.# detailing_management_system
