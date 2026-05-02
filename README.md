@@ -64,7 +64,7 @@ This is a PHP-based web application for booking car detailing appointments, buil
 - Modified index.php to route login and logout requests through LoginController.
 - Restricted access to the admin page via ?action=admin to logged-in users only.
 - Added session checks and session regeneration to improve security.
-- Contact Carlos or Niyo for issues.
+- Feel free to contact us for any questions.
 
 ## Structure
 - `config/`: Database settings.
