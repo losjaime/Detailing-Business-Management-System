@@ -176,10 +176,12 @@ class DataLayer
     public function updateAppointmentStatus($appointment_id, $status)
     {
         $stmt = $this->conn->prepare("UPDATE appointments SET status = ? WHERE appointment_id = ?");
-        $stmt->bind_param("si", $status, $appointment_id);
-        $success = $stmt->execute();
+        $id = (int)$appointment_id;
+        $stmt->bind_param("si", $status, $id);
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
         $stmt->close();
-        return $success;
+        return $affected >= 0; // -1 means SQL error; 0 means no row matched (still ok)
     }
 
     public function deleteAppointment($appointment_id)
@@ -189,6 +191,108 @@ class DataLayer
         $success = $stmt->execute();
         $stmt->close();
         return $success;
+    }
+
+    // Testimonials
+    public function addTestimonial($client_name, $message, $rating)
+    {
+        $stmt = $this->conn->prepare(
+            "INSERT INTO testimonials (client_name, message, rating) VALUES (?, ?, ?)"
+        );
+        $stmt->bind_param("ssi", $client_name, $message, $rating);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
+
+    public function getApprovedTestimonials()
+    {
+        $result = $this->conn->query(
+            "SELECT * FROM testimonials WHERE status = 'Approved' ORDER BY created_at DESC"
+        );
+        return $result->fetch_all(MYSQLI_ASSOC);
+    }
+
+    public function getAllTestimonials()
+    {
+        $result = $this->conn->query(
+            "SELECT * FROM testimonials ORDER BY created_at DESC"
+        );
+        return $result->fetch_all(MYSQLI_ASSOC);
+    }
+
+    public function updateTestimonialStatus($testimonial_id, $status)
+    {
+        $stmt = $this->conn->prepare(
+            "UPDATE testimonials SET status = ? WHERE testimonial_id = ?"
+        );
+        $id = (int)$testimonial_id;
+        $stmt->bind_param("si", $status, $id);
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
+        $stmt->close();
+        return $affected >= 0;
+    }
+
+    public function deleteTestimonial($testimonial_id)
+    {
+        $stmt = $this->conn->prepare(
+            "DELETE FROM testimonials WHERE testimonial_id = ?"
+        );
+        $stmt->bind_param("i", $testimonial_id);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
+
+    // Reports
+    public function getRevenueStats()
+    {
+        $result = $this->conn->query(
+            "SELECT
+                COUNT(*) as total_appointments,
+                SUM(CASE WHEN a.status = 'Completed' THEN s.price ELSE 0 END) as total_revenue,
+                SUM(CASE WHEN a.status = 'Pending'   THEN 1 ELSE 0 END) as pending_count,
+                SUM(CASE WHEN a.status = 'Confirmed' THEN 1 ELSE 0 END) as confirmed_count,
+                SUM(CASE WHEN a.status = 'Completed' THEN 1 ELSE 0 END) as completed_count,
+                SUM(CASE WHEN a.status = 'Cancelled' THEN 1 ELSE 0 END) as cancelled_count
+             FROM appointments a
+             JOIN services s ON a.service_id = s.service_id"
+        );
+        return $result->fetch_assoc();
+    }
+
+    public function getMonthlyRevenue()
+    {
+        $result = $this->conn->query(
+            "SELECT
+                DATE_FORMAT(a.appointment_date, '%Y-%m') as month,
+                DATE_FORMAT(a.appointment_date, '%b %Y') as month_label,
+                COUNT(*) as appointment_count,
+                SUM(s.price) as revenue
+             FROM appointments a
+             JOIN services s ON a.service_id = s.service_id
+             WHERE a.status = 'Completed'
+             GROUP BY DATE_FORMAT(a.appointment_date, '%Y-%m')
+             ORDER BY month DESC
+             LIMIT 6"
+        );
+        return $result->fetch_all(MYSQLI_ASSOC);
+    }
+
+    public function getUpcomingAppointments()
+    {
+        $result = $this->conn->query(
+            "SELECT a.appointment_id, c.first_name, c.last_name,
+                    s.service_name, s.price, a.appointment_date, a.status
+             FROM appointments a
+             JOIN clients c ON a.client_id = c.client_id
+             JOIN services s ON a.service_id = s.service_id
+             WHERE a.appointment_date >= NOW() AND a.status IN ('Pending', 'Confirmed')
+             ORDER BY a.appointment_date ASC
+             LIMIT 10"
+        );
+        return $result->fetch_all(MYSQLI_ASSOC);
     }
 
     public function __destruct()

@@ -35,13 +35,11 @@ class LoginController
                 session_regenerate_id(true);
                 $_SESSION['user'] = $username; // Store the username in session
 
-                // Redirect to the admin page after successful login
-                header("Location: /projects/detail_lab/public/index.php?action=admin");
+                header("Location: " . $_SERVER['PHP_SELF'] . "?action=admin");
                 exit();
             } else {
-                // If credentials are invalid, set an error message and redirect to the login page
                 $_SESSION['login_error'] = 'Invalid username or password.';
-                header("Location: /projects/detail_lab/public/index.php");
+                header("Location: " . $_SERVER['PHP_SELF']);
                 exit();
             }
         }
@@ -54,7 +52,7 @@ class LoginController
             // Destroy session and redirect to homepage
             session_unset();
             session_destroy();
-            header("Location: /projects/detail_lab/public/index.php");
+            header("Location: " . $_SERVER['PHP_SELF']);
             exit();
         }
     }

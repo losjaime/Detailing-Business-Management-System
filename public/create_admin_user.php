@@ -1,4 +1,4 @@
-</*?php
+<?php
 require_once __DIR__ . '/../src/models/DataLayer.php';
 
 $dataLayer = new DataLayer();
@@ -7,7 +7,6 @@ $username = 'admin';
 $password = 'admin123';
 $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
-// Ensure getConnection() method exists in DataLayer
 $conn = $dataLayer->getConnection();
 $stmt = $conn->prepare("INSERT INTO users (username, password) VALUES (?, ?)");
 
@@ -25,4 +24,4 @@ if ($stmt) {
 } else {
     echo "Statement preparation failed.";
 }
-?*/>
+?>

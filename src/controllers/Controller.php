@@ -1,6 +1,5 @@
 <?php
-// controllers/Controller.php
-require_once __DIR__ . '/../models/DataLayer.php'; 
+require_once __DIR__ . '/../models/DataLayer.php';
 
 class Controller
 {
@@ -20,6 +19,8 @@ class Controller
                 return $this->services();
             case 'book':
                 return $this->book($params);
+            case 'testimonials':
+                return $this->testimonials($params);
             case 'admin':
                 return $this->admin($params);
             default:
@@ -34,84 +35,96 @@ class Controller
 
     private function services()
     {
-        $services = $this->dataLayer->getServices();
-        return ['view' => 'services', 'data' => ['services' => $services]];
+        return ['view' => 'services', 'data' => ['services' => $this->dataLayer->getServices()]];
     }
 
     private function book($params)
     {
+        $services = $this->dataLayer->getServices();
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($params['book_appointment'])) {
-            // Validate required fields
             $required = ['name', 'email', 'phone', 'address', 'appointmentDate', 'appointmentTime', 'package'];
             foreach ($required as $field) {
                 if (!isset($params[$field]) || empty(trim($params[$field]))) {
-                    return ['view' => 'book', 'data' => ['error' => "Missing required field: $field"]];
+                    return ['view' => 'book', 'data' => ['services' => $services, 'error' => "Missing required field: $field"]];
                 }
             }
 
-            $name = trim($params['name']);
-            $email = trim($params['email']);
-            $phone = trim($params['phone']);
-            $address = trim($params['address']);
+            $name             = trim($params['name']);
+            $email            = trim($params['email']);
+            $phone            = trim($params['phone']);
+            $address          = trim($params['address']);
             $appointment_date = trim($params['appointmentDate']);
             $appointment_time = trim($params['appointmentTime']);
-            $package = trim($params['package']);
+            $package          = trim($params['package']);
 
-            // Split name
             $name_parts = explode(" ", $name, 2);
             $first_name = $name_parts[0];
-            $last_name = $name_parts[1] ?? '';
+            $last_name  = $name_parts[1] ?? '';
 
-            // Validate date/time
             $appointment_datetime = DateTime::createFromFormat("Y-m-d H:i A", "$appointment_date $appointment_time");
             if (!$appointment_datetime) {
-                return ['view' => 'book', 'data' => ['error' => 'Invalid date or time format']];
+                return ['view' => 'book', 'data' => ['services' => $services, 'error' => 'Invalid date or time format']];
             }
             if ($appointment_datetime < new DateTime()) {
-                return ['view' => 'book', 'data' => ['error' => 'Selected date/time is in the past']];
+                return ['view' => 'book', 'data' => ['services' => $services, 'error' => 'Selected date/time is in the past']];
             }
             $formatted_datetime = $appointment_datetime->format("Y-m-d H:i:s");
 
-            // Validate package
             $service = $this->dataLayer->getServiceByName($package);
             if (!$service) {
-                return ['view' => 'book', 'data' => ['error' => 'Invalid package selected']];
-            }
-            $duration = $service['duration'];
-
-            // Check conflicts
-            if ($this->dataLayer->checkAppointmentConflict($formatted_datetime, $duration)) {
-                return ['view' => 'book', 'data' => ['error' => 'Selected time slot is already booked. Please choose another time']];
+                return ['view' => 'book', 'data' => ['services' => $services, 'error' => 'Invalid package selected']];
             }
 
-            // Handle client
+            if ($this->dataLayer->checkAppointmentConflict($formatted_datetime, $service['duration'])) {
+                return ['view' => 'book', 'data' => ['services' => $services, 'error' => 'Selected time slot is already booked. Please choose another time']];
+            }
+
             $client = $this->dataLayer->getClientByEmail($email);
             if ($client) {
                 $client_id = $client['client_id'];
             } else {
                 $client_id = $this->dataLayer->addClient($first_name, $last_name, $email, $phone, $address);
                 if (!$client_id) {
-                    return ['view' => 'book', 'data' => ['error' => 'Failed to add client']];
+                    return ['view' => 'book', 'data' => ['services' => $services, 'error' => 'Failed to add client']];
                 }
             }
 
-            // Add appointment
             if ($this->dataLayer->addAppointment($client_id, $service['service_id'], $formatted_datetime)) {
-                return ['view' => 'book', 'data' => ['success' => 'Appointment booked successfully!']];
+                return ['view' => 'book', 'data' => ['services' => $services, 'success' => 'Appointment booked successfully!']];
             }
-            return ['view' => 'book', 'data' => ['error' => 'Failed to book appointment']];
+            return ['view' => 'book', 'data' => ['services' => $services, 'error' => 'Failed to book appointment']];
         }
-        return ['view' => 'book', 'data' => []];
+        return ['view' => 'book', 'data' => ['services' => $services]];
+    }
+
+    private function testimonials($params)
+    {
+        $data = [
+            'testimonials' => $this->dataLayer->getApprovedTestimonials(),
+        ];
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($params['submit_testimonial'])) {
+            $name    = trim($params['client_name'] ?? '');
+            $message = trim($params['message'] ?? '');
+            $rating  = (int)($params['rating'] ?? 0);
+
+            if (empty($name) || empty($message) || $rating < 1 || $rating > 5) {
+                $data['error'] = 'Please fill in all fields and select a star rating.';
+            } elseif ($this->dataLayer->addTestimonial($name, $message, $rating)) {
+                $data['success'] = 'Thank you! Your review has been submitted and is pending approval.';
+            } else {
+                $data['error'] = 'Something went wrong. Please try again.';
+            }
+        }
+
+        return ['view' => 'testimonials', 'data' => $data];
     }
 
     private function admin($params)
     {
-        $data = [
-            'clients' => $this->dataLayer->getClients(),
-            'services' => $this->dataLayer->getServices(),
-            'appointments' => $this->dataLayer->getAppointments(),
-            'message' => ''
-        ];
+        $data = $this->fetchAdminData();
+        $data['message'] = '';
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (isset($params['add_client'])) {
@@ -122,29 +135,19 @@ class Controller
                         return ['view' => 'admin', 'data' => $data];
                     }
                 }
-                if ($this->dataLayer->addClient(
-                    $params['first_name'],
-                    $params['last_name'],
-                    $params['email'],
-                    $params['phone'],
-                    $params['address']
-                )) {
-                    $data['message'] = 'Client added successfully!';
-                } else {
-                    $data['message'] = 'Error adding client';
-                }
+                $data['message'] = $this->dataLayer->addClient(
+                    $params['first_name'], $params['last_name'],
+                    $params['email'], $params['phone'], $params['address']
+                ) ? 'Client added successfully!' : 'Error adding client';
+
             } elseif (isset($params['update_client'])) {
-                if ($this->dataLayer->updateClientEmail($params['client_id'], $params['new_email'])) {
-                    $data['message'] = 'Client updated successfully!';
-                } else {
-                    $data['message'] = 'Error updating client';
-                }
+                $data['message'] = $this->dataLayer->updateClientEmail($params['client_id'], $params['new_email'])
+                    ? 'Client updated successfully!' : 'Error updating client';
+
             } elseif (isset($params['delete_client'])) {
-                if ($this->dataLayer->deleteClient($params['client_id'])) {
-                    $data['message'] = 'Client deleted successfully!';
-                } else {
-                    $data['message'] = 'Error deleting client';
-                }
+                $data['message'] = $this->dataLayer->deleteClient($params['client_id'])
+                    ? 'Client deleted successfully!' : 'Error deleting client';
+
             } elseif (isset($params['add_service'])) {
                 $required = ['service_name', 'description', 'price', 'duration'];
                 foreach ($required as $field) {
@@ -153,50 +156,53 @@ class Controller
                         return ['view' => 'admin', 'data' => $data];
                     }
                 }
-                if ($this->dataLayer->addService(
-                    $params['service_name'],
-                    $params['description'],
-                    $params['price'],
-                    $params['duration']
-                )) {
-                    $data['message'] = 'Service added successfully!';
-                } else {
-                    $data['message'] = 'Error adding service';
-                }
+                $data['message'] = $this->dataLayer->addService(
+                    $params['service_name'], $params['description'],
+                    $params['price'], $params['duration']
+                ) ? 'Service added successfully!' : 'Error adding service';
+
             } elseif (isset($params['update_service'])) {
-                if ($this->dataLayer->updateService(
-                    $params['service_id'],
-                    $params['new_price'],
-                    $params['new_duration']
-                )) {
-                    $data['message'] = 'Service updated successfully!';
-                } else {
-                    $data['message'] = 'Error updating service';
-                }
+                $data['message'] = $this->dataLayer->updateService(
+                    $params['service_id'], $params['new_price'], $params['new_duration']
+                ) ? 'Service updated successfully!' : 'Error updating service';
+
             } elseif (isset($params['delete_service'])) {
-                if ($this->dataLayer->deleteService($params['service_id'])) {
-                    $data['message'] = 'Service deleted successfully!';
-                } else {
-                    $data['message'] = 'Error deleting service';
-                }
+                $data['message'] = $this->dataLayer->deleteService($params['service_id'])
+                    ? 'Service deleted successfully!' : 'Error deleting service';
+
             } elseif (isset($params['update_appointment'])) {
-                if ($this->dataLayer->updateAppointmentStatus($params['appointment_id'], $params['new_status'])) {
-                    $data['message'] = 'Appointment updated successfully!';
-                } else {
-                    $data['message'] = 'Error updating appointment';
-                }
+                $data['message'] = $this->dataLayer->updateAppointmentStatus($params['appointment_id'], $params['new_status'])
+                    ? 'Appointment updated successfully!' : 'Error updating appointment';
+
             } elseif (isset($params['delete_appointment'])) {
-                if ($this->dataLayer->deleteAppointment($params['appointment_id'])) {
-                    $data['message'] = 'Appointment deleted successfully!';
-                } else {
-                    $data['message'] = 'Error deleting appointment';
-                }
+                $data['message'] = $this->dataLayer->deleteAppointment($params['appointment_id'])
+                    ? 'Appointment deleted successfully!' : 'Error deleting appointment';
+
+            } elseif (isset($params['update_testimonial'])) {
+                $data['message'] = $this->dataLayer->updateTestimonialStatus($params['testimonial_id'], $params['new_status'])
+                    ? 'Review updated successfully!' : 'Error updating review';
+
+            } elseif (isset($params['delete_testimonial'])) {
+                $data['message'] = $this->dataLayer->deleteTestimonial($params['testimonial_id'])
+                    ? 'Review deleted successfully!' : 'Error deleting review';
             }
-            // Refresh data
-            $data['clients'] = $this->dataLayer->getClients();
-            $data['services'] = $this->dataLayer->getServices();
-            $data['appointments'] = $this->dataLayer->getAppointments();
+
+            $data = array_merge($data, $this->fetchAdminData());
         }
+
         return ['view' => 'admin', 'data' => $data];
+    }
+
+    private function fetchAdminData()
+    {
+        return [
+            'clients'         => $this->dataLayer->getClients(),
+            'services'        => $this->dataLayer->getServices(),
+            'appointments'    => $this->dataLayer->getAppointments(),
+            'testimonials'    => $this->dataLayer->getAllTestimonials(),
+            'report'          => $this->dataLayer->getRevenueStats(),
+            'monthly_revenue' => $this->dataLayer->getMonthlyRevenue(),
+            'upcoming'        => $this->dataLayer->getUpcomingAppointments(),
+        ];
     }
 }

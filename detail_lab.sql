@@ -122,6 +122,20 @@ ALTER TABLE `services`
   ADD PRIMARY KEY (`service_id`);
 
 --
+-- Table structure for table `testimonials`
+--
+
+CREATE TABLE `testimonials` (
+  `testimonial_id` int(11) NOT NULL AUTO_INCREMENT,
+  `client_name` varchar(100) NOT NULL,
+  `message` text NOT NULL,
+  `rating` tinyint(4) NOT NULL,
+  `status` enum('Pending','Approved','Rejected') NOT NULL DEFAULT 'Pending',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`testimonial_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
 -- Indexes for table `users`
 --
 ALTER TABLE `users`

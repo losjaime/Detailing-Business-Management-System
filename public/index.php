@@ -4,6 +4,9 @@ session_start();
 require_once __DIR__ . '/../src/controllers/LoginController.php';
 require_once __DIR__ . '/../src/controllers/Controller.php';
 
+// Compute base URL dynamically so the site works at any server path
+$base_url = $_SERVER['PHP_SELF'];
+
 // Handle login/logout before anything else
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $loginController = new LoginController();

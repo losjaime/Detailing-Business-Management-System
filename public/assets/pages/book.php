@@ -1,11 +1,7 @@
-<?php
-require_once __DIR__ . '/../../../src/models/DataLayer.php';
-
-$dataLayer = new DataLayer();
-$services = $dataLayer->getServices(); // Fetch all services
-?>
+<?php $services = $data['services'] ?? []; ?>
 <h2>Book Now</h2>
-<div id="messageBox" style="display: none; padding: 10px; margin-bottom: 20px; border-radius: 5px; text-align: center;"></div>
+<div class="book-wrap">
+<div id="messageBox" style="display:none;"></div>
 <form id="bookingForm" method="post" action="<?php echo $base_url; ?>?action=book">
     <label for="name">Name:</label>
     <input type="text" name="name" id="name" required>
@@ -44,8 +40,9 @@ $services = $dataLayer->getServices(); // Fetch all services
     </section>
 
     <input type="hidden" name="book_appointment" value="1">
-    <button type="submit">Submit</button>
+    <button type="submit">Book Appointment</button>
 </form>
+</div>
 
 <script>
     // Show message if present
